@@ -1,73 +1,37 @@
-# React + TypeScript + Vite
+# Sticky Notes
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A sticky-note board: create notes, drag and resize them, edit their text inline, and delete them by dropping them on the trash zone. State persists to `localStorage`, so the board survives a page reload.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+React + TypeScript + Vite, styled with Tailwind CSS.
 
-## React Compiler
+## Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The app is small, so the architecture stays intentionally flat:
 
-## Expanding the ESLint configuration
+- `App` renders a single top-level component, `Board`, which is the board itself.
+- `Board` owns the list of notes through the `useNotes` hook (`src/hooks/useNotes.ts`) and passes callbacks (`addNote`, `updateNote`, `removeNote`, `bringToFront`) down to the toolbar and the notes as props.
+- `StickyNote` is a presentational component for a single note; dragging and resizing are implemented with the `usePointerDrag` hook rather than a third-party DnD library.
+- `api/storage.ts` is a thin persistence layer on top of `localStorage`; `useNotes` syncs it in a `useEffect` whenever the notes change.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Why no state manager
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+All application state is a single array of notes, living in one place (`useNotes`) and consumed by one subtree of components. There's no state shared across distant parts of the tree and no complex async flows that would justify Redux, Zustand, Recoil, etc. `useState` plus props gives the same result with less code and less boilerplate. If the board grows more functionality (multiple boards, real-time sync, undo/redo history), that's the point to revisit this decision.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Testing
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x';
-import reactDom from 'eslint-plugin-react-dom';
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-]);
+```bash
+npm run test
 ```
+
+## Linting
+
+If you are developing this further, the ESLint config already enables type-aware rules via `tseslint.configs.recommendedTypeChecked` (see `eslint.config.js`).

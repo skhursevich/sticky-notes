@@ -8,7 +8,7 @@ import type { NoteColor, Rect } from '../types';
 import { DEFAULT_NOTE_HEIGHT, DEFAULT_NOTE_WIDTH, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from '../types';
 import { clamp } from '../utils/geometry';
 
-const CLICK_DRAG_THRESHOLD_PX = 6;
+const CLICK_DRAG_THRESHOLD_PX = 10;
 
 export function Board() {
   const boardRef = useRef<HTMLDivElement>(null);
