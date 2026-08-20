@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+:root {
+  --color-board-grid-dot: #d7dbe3;
+  --color-board-grid-bg: #f7f8fa;
+}
+
 html,
 body,
 #root {
@@ -10,4 +15,11 @@ body {
   margin: 0;
   overscroll-behavior: none;
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Dotted canvas background, similar to Miro's board grid */
+.board-grid {
+  background-image: radial-gradient(circle, var(--color-board-grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: var(--color-board-grid-bg);
 }
