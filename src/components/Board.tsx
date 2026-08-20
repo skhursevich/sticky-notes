@@ -1,30 +1,74 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useNotes } from "../hooks/useNotes";
-import { StickyNote } from "./StickyNote";
-import { Toolbar } from "./Toolbar";
-import { Trash } from "./Trash";
-import { DEFAULT_NOTE_HEIGHT, DEFAULT_NOTE_WIDTH, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from "../types";
+import { useNotes } from '../hooks/useNotes';
+import { StickyNote } from './StickyNote';
+import { Trash } from './Trash';
+import { Toolbar } from './Toolbar';
 import type { NoteColor, Rect } from '../types';
+import { DEFAULT_NOTE_HEIGHT, DEFAULT_NOTE_WIDTH, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from '../types';
 import { clamp } from '../utils/geometry';
 
 const CLICK_DRAG_THRESHOLD_PX = 6;
 
-export function Board() {  
+export function Board() {
   const boardRef = useRef<HTMLDivElement>(null);
+  const trashRef = useRef<HTMLDivElement>(null);
+  const { notes, addNote, updateNote, removeNote, bringToFront } = useNotes();
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isPlacing, setIsPlacing] = useState(false);
+  const [placingColor, setPlacingColor] = useState<NoteColor>('yellow');
+  const [draft, setDraft] = useState<Rect | null>(null);
+  const [trashActive, setTrashActive] = useState(false);
   const creationOrigin = useRef({ x: 0, y: 0 });
 
-  const { notes, addNote } = useNotes();
+  const handleSelect = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      bringToFront(id);
+    },
+    [bringToFront],
+  );
 
-  const [placingColor] = useState<NoteColor>('yellow');
-  const [draft, setDraft] = useState<Rect | null>(null);
+  const handleMove = useCallback(
+    (id: string, x: number, y: number) => updateNote(id, { x, y }),
+    [updateNote],
+  );
+
+  const handleResize = useCallback(
+    (id: string, width: number, height: number) => updateNote(id, { width, height }),
+    [updateNote],
+  );
+
+  const handleTextChange = useCallback(
+    (id: string, text: string) => updateNote(id, { text }),
+    [updateNote],
+  );
+
+  const handleColorChange = useCallback(
+    (id: string, color: NoteColor) => updateNote(id, { color }),
+    [updateNote],
+  );
+
+  const handleRemove = useCallback(
+    (id: string) => {
+      removeNote(id);
+      setSelectedId((current) => (current === id ? null : current));
+    },
+    [removeNote],
+  );
 
   const handleBoardPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {      
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isPlacing) {
+        setSelectedId(null);
+        return;
+      }
+
       if (e.target !== e.currentTarget) return;
 
       const boardRect = boardRef.current?.getBoundingClientRect();
-      
+
       if (!boardRect) return;
 
       const originX = e.clientX - boardRect.left;
@@ -36,7 +80,7 @@ export function Board() {
         const currentX = clamp(moveEvent.clientX - boardRect.left, 0, boardRect.width);
         const currentY = clamp(moveEvent.clientY - boardRect.top, 0, boardRect.height);
         const { x: startX, y: startY } = creationOrigin.current;
-        
+
         setDraft({
           x: Math.min(startX, currentX),
           y: Math.min(startY, currentY),
@@ -56,44 +100,64 @@ export function Board() {
         const draggedWidth = Math.abs(currentX - startX);
         const draggedHeight = Math.abs(currentY - startY);
 
-        const isClick = draggedWidth < CLICK_DRAG_THRESHOLD_PX && draggedHeight < CLICK_DRAG_THRESHOLD_PX;
+        const isClick =
+          draggedWidth < CLICK_DRAG_THRESHOLD_PX && draggedHeight < CLICK_DRAG_THRESHOLD_PX;
         const width = isClick ? DEFAULT_NOTE_WIDTH : Math.max(draggedWidth, MIN_NOTE_WIDTH);
         const height = isClick ? DEFAULT_NOTE_HEIGHT : Math.max(draggedHeight, MIN_NOTE_HEIGHT);
-        
+
         const x = clamp(
           isClick ? startX - width / 2 : Math.min(startX, currentX),
           0,
           boardRect.width - width,
         );
-        
+
         const y = clamp(
           isClick ? startY - height / 2 : Math.min(startY, currentY),
           0,
           boardRect.height - height,
         );
 
-        addNote({ x, y, width, height }, placingColor);
+        const created = addNote({ x, y, width, height }, placingColor);
+        setSelectedId(created.id);
         setDraft(null);
+        setIsPlacing(false);
       };
 
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [addNote, placingColor],
+    [isPlacing, addNote, placingColor],
   );
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-50">
-      <Toolbar />
+      <Toolbar
+        isPlacing={isPlacing}
+        onTogglePlacing={() => setIsPlacing((prev) => !prev)}
+        placingColor={placingColor}
+        onPlacingColorChange={setPlacingColor}
+        noteCount={notes.length}
+      />
+
       <div
         ref={boardRef}
-        className="board-grid relative flex-1 overflow-hidden"
+        className={`board-grid relative flex-1 overflow-hidden ${isPlacing ? 'cursor-crosshair' : ''}`}
         onPointerDown={handleBoardPointerDown}
       >
         {notes.map((note) => (
           <StickyNote
             key={note.id}
             note={note}
+            boardRef={boardRef}
+            trashRef={trashRef}
+            selected={selectedId === note.id}
+            onSelect={handleSelect}
+            onMove={handleMove}
+            onResize={handleResize}
+            onTextChange={handleTextChange}
+            onColorChange={handleColorChange}
+            onRemove={handleRemove}
+            onDragOverTrashChange={setTrashActive}
           />
         ))}
 
@@ -103,9 +167,17 @@ export function Board() {
             style={{ left: draft.x, top: draft.y, width: draft.width, height: draft.height }}
           />
         )}
-      </div>
 
-      <Trash />
+        <Trash ref={trashRef} active={trashActive} />
+
+        {notes.length === 0 && !isPlacing && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="text-sm text-slate-400">
+              Click &ldquo;New note&rdquo;, then click or drag on the board to create one.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -51,6 +51,14 @@ export function useNotes() {
     setNotes((prev) => prev.filter((note) => note.id !== id));
   }, []);
 
+  const bringToFront = useCallback(
+    (id: string) => {
+      const top = nextZIndex();
+      setNotes((prev) => prev.map((note) => (note.id === id ? { ...note, zIndex: top } : note)));
+    },
+    [nextZIndex],
+  );
+
   const sortedNotes = useMemo(() => [...notes].sort((a, b) => a.zIndex - b.zIndex), [notes]);
 
   return {
@@ -58,5 +66,6 @@ export function useNotes() {
     addNote,
     updateNote,
     removeNote,
+    bringToFront,
   };
 }

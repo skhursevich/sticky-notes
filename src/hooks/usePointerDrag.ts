@@ -25,7 +25,7 @@ export function usePointerDrag(handlers: DragHandlers) {
     if (e.button !== undefined && e.button !== 0) return;
 
     e.stopPropagation();
-    
+
     origin.current = { x: e.clientX, y: e.clientY };
     handlersRef.current.onDragStart?.(e);
 
@@ -35,7 +35,7 @@ export function usePointerDrag(handlers: DragHandlers) {
     const handleMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - origin.current.x;
       const dy = moveEvent.clientY - origin.current.y;
-      
+
       handlersRef.current.onDragMove({
         dx,
         dy,
@@ -47,14 +47,14 @@ export function usePointerDrag(handlers: DragHandlers) {
     const handleUp = (upEvent: PointerEvent) => {
       const dx = upEvent.clientX - origin.current.x;
       const dy = upEvent.clientY - origin.current.y;
-      
+
       handlersRef.current.onDragEnd?.({
         dx,
         dy,
         clientX: upEvent.clientX,
         clientY: upEvent.clientY,
       });
-      
+
       target.releasePointerCapture(e.pointerId);
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
