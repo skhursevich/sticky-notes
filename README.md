@@ -19,6 +19,10 @@ The app is small, so the architecture stays intentionally flat:
 
 All application state is a single array of notes, living in one place (`useNotes`) and consumed by one subtree of components. There's no state shared across distant parts of the tree and no complex async flows that would justify Redux, Zustand, Recoil, etc. `useState` plus props gives the same result with less code and less boilerplate. If the board grows more functionality (multiple boards, real-time sync, undo/redo history), that's the point to revisit this decision.
 
+## Live demo
+
+The app is deployed via GitHub Pages: https://skhursevich.github.io/sticky-notes/
+
 ## Development
 
 ```bash
