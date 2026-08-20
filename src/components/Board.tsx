@@ -1,4 +1,5 @@
 import { Toolbar } from "./Toolbar";
+import { Trash } from "./Trash";
 
 export function Board() {
   return (
@@ -8,6 +9,8 @@ export function Board() {
         className="board-grid relative flex-1 overflow-hidden"
       >
       </div>
+
+      <Trash />
     </div>
   );
 }
