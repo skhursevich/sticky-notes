@@ -32,7 +32,15 @@ export function usePointerDrag(handlers: DragHandlers) {
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
 
-    const handleMove = (moveEvent: PointerEvent) => {
+    let rafId: number | null = null;
+    let pendingMove: PointerEvent | null = null;
+
+    const flushMove = () => {
+      rafId = null;
+      const moveEvent = pendingMove;
+      if (!moveEvent) return;
+      pendingMove = null;
+
       const dx = moveEvent.clientX - origin.current.x;
       const dy = moveEvent.clientY - origin.current.y;
 
@@ -44,7 +52,23 @@ export function usePointerDrag(handlers: DragHandlers) {
       });
     };
 
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== e.pointerId) return;
+      pendingMove = moveEvent;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushMove);
+      }
+    };
+
     const handleUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== e.pointerId) return;
+
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      pendingMove = null;
+
       const dx = upEvent.clientX - origin.current.x;
       const dy = upEvent.clientY - origin.current.y;
 
@@ -56,14 +80,14 @@ export function usePointerDrag(handlers: DragHandlers) {
       });
 
       target.releasePointerCapture(e.pointerId);
-      target.removeEventListener('pointermove', handleMove);
-      target.removeEventListener('pointerup', handleUp);
-      target.removeEventListener('pointercancel', handleUp);
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+      document.removeEventListener('pointercancel', handleUp);
     };
 
-    target.addEventListener('pointermove', handleMove);
-    target.addEventListener('pointerup', handleUp);
-    target.addEventListener('pointercancel', handleUp);
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+    document.addEventListener('pointercancel', handleUp);
   }, []);
 
   return startDrag;

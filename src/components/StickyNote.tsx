@@ -70,8 +70,10 @@ export const StickyNote = memo(function StickyNote({
       };
 
       const over = overlapRatio(trashRect, noteScreenRect) > 0.5;
-      setIsOverTrash(over);
-      onDragOverTrashChange(over);
+      if (over !== isOverTrash) {
+        setIsOverTrash(over);
+        onDragOverTrashChange(over);
+      }
     },
     onDragEnd: ({ dx, dy }) => {
       const boardRect = getBoardRect();
