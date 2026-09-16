@@ -5,6 +5,7 @@ interface ColorTheme {
   swatch: string;
   note: string;
   border: string;
+  hoverNote: string;
 }
 
 export const NOTE_COLOR_THEME: Record<NoteColor, ColorTheme> = {
@@ -13,29 +14,34 @@ export const NOTE_COLOR_THEME: Record<NoteColor, ColorTheme> = {
     swatch: 'bg-amber-300',
     note: 'bg-amber-200',
     border: 'border-amber-400',
+    hoverNote: 'hover:bg-amber-300',
   },
   pink: {
     label: 'Pink',
     swatch: 'bg-pink-300',
     note: 'bg-pink-200',
     border: 'border-pink-400',
+    hoverNote: 'hover:bg-pink-300',
   },
   blue: {
     label: 'Blue',
     swatch: 'bg-sky-300',
     note: 'bg-sky-200',
     border: 'border-sky-400',
+    hoverNote: 'hover:bg-sky-300',
   },
   green: {
     label: 'Green',
     swatch: 'bg-emerald-300',
     note: 'bg-emerald-200',
     border: 'border-emerald-400',
+    hoverNote: 'hover:bg-emerald-300',
   },
   orange: {
     label: 'Orange',
     swatch: 'bg-orange-300',
     note: 'bg-orange-200',
     border: 'border-orange-400',
+    hoverNote: 'hover:bg-orange-300',
   },
 };

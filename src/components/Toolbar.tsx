@@ -2,6 +2,7 @@ import { LuCirclePlus } from 'react-icons/lu';
 import type { NoteColor } from '../types';
 import { NOTE_COLORS } from '../types';
 import { NOTE_COLOR_THEME } from '../constants/colors';
+import { useCallback, useState } from 'react';
 
 interface ToolbarProps {
   isPlacing: boolean;
@@ -18,6 +19,16 @@ export function Toolbar({
   onPlacingColorChange,
   noteCount,
 }: ToolbarProps) {
+  const [activeColor, setActiveColor] = useState<NoteColor>('yellow');
+
+  const handleChangeColor = useCallback(
+    (color: NoteColor) => {
+      setActiveColor(color);
+      onPlacingColorChange(color);
+    },
+    [onPlacingColorChange],
+  );
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 shadow-sm">
       <div className="flex items-center gap-2">
@@ -32,11 +43,7 @@ export function Toolbar({
       <button
         type="button"
         onClick={onTogglePlacing}
-        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-          isPlacing
-            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-        }`}
+        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-800 transition-colors ${NOTE_COLOR_THEME[activeColor].note} ${NOTE_COLOR_THEME[activeColor].hoverNote}`}
       >
         <LuCirclePlus size={16} />
         {isPlacing ? 'Click or drag on the board...' : 'New note'}
@@ -47,7 +54,7 @@ export function Toolbar({
           <button
             key={color}
             type="button"
-            onClick={() => onPlacingColorChange(color)}
+            onClick={() => handleChangeColor(color)}
             className={`h-5 w-5 rounded-full border border-black/10 ${NOTE_COLOR_THEME[color].swatch} ${
               color === placingColor ? 'ring-2 ring-offset-1 ring-indigo-500' : ''
             }`}
