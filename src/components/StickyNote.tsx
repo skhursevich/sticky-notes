@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { TfiArrowsCorner } from 'react-icons/tfi';
 import type { NoteColor, StickyNoteData } from '../types';
@@ -21,7 +21,7 @@ interface StickyNoteProps {
   onDragOverTrashChange: (active: boolean) => void;
 }
 
-export function StickyNote({
+export const StickyNote = memo(function StickyNote({
   note,
   boardRef,
   trashRef,
@@ -37,6 +37,8 @@ export function StickyNote({
   const [isEditing, setIsEditing] = useState(false);
   const [isOverTrash, setIsOverTrash] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [livePosition, setLivePosition] = useState<{ x: number; y: number } | null>(null);
+  
   const dragStart = useRef({ x: note.x, y: note.y, width: note.width, height: note.height });
   const theme = NOTE_COLOR_THEME[note.color];
 
@@ -54,7 +56,7 @@ export function StickyNote({
 
       const nextX = clamp(dragStart.current.x + dx, 0, boardRect.width - note.width);
       const nextY = clamp(dragStart.current.y + dy, 0, boardRect.height - note.height);
-      onMove(note.id, nextX, nextY);
+      setLivePosition({ x: nextX, y: nextY });
 
       const trash = trashRef.current;
       if (!trash) return;
@@ -71,15 +73,26 @@ export function StickyNote({
       setIsOverTrash(over);
       onDragOverTrashChange(over);
     },
-    onDragEnd: () => {
+    onDragEnd: ({ dx, dy }) => {
+      const boardRect = getBoardRect();
+      if (boardRect) {
+        const finalX = clamp(dragStart.current.x + dx, 0, boardRect.width - note.width);
+        const finalY = clamp(dragStart.current.y + dy, 0, boardRect.height - note.height);
+        onMove(note.id, finalX, finalY);
+      }
+
       onDragOverTrashChange(false);
       if (isOverTrash) {
         onRemove(note.id);
       }
       setIsOverTrash(false);
       setIsMoving(false);
+      setLivePosition(null);
     },
   });
+
+  const displayX = livePosition?.x ?? note.x;
+  const displayY = livePosition?.y ?? note.y;
 
   const startResize = usePointerDrag({
     onDragStart: () => {
@@ -103,8 +116,8 @@ export function StickyNote({
         isOverTrash ? 'opacity-40 ring-2 ring-red-500' : ''
       } ${selected ? 'ring-2 ring-offset-1 ring-indigo-500' : ''}`}
       style={{
-        left: note.x,
-        top: note.y,
+        left: displayX,
+        top: displayY,
         width: note.width,
         height: note.height,
         zIndex: note.zIndex,
@@ -173,4 +186,4 @@ export function StickyNote({
       )}
     </div>
   );
-}
+});
