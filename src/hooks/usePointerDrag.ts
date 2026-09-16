@@ -8,7 +8,7 @@ export interface DragDelta {
 }
 
 export interface DragHandlers {
-  onDragStart?: (e: React.PointerEvent) => void;
+  onDragStart?: (e: React.PointerEvent) => void | boolean;
   onDragMove: (delta: DragDelta) => void;
   onDragEnd?: (delta: DragDelta) => void;
 }
@@ -27,7 +27,8 @@ export function usePointerDrag(handlers: DragHandlers) {
     e.stopPropagation();
 
     origin.current = { x: e.clientX, y: e.clientY };
-    handlersRef.current.onDragStart?.(e);
+    const shouldStart = handlersRef.current.onDragStart?.(e);
+    if (shouldStart === false) return;
 
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);

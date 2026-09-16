@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useNotes } from '../hooks/useNotes';
 import { StickyNote } from './StickyNote';
@@ -22,12 +22,38 @@ export function Board() {
   const [trashActive, setTrashActive] = useState(false);
   const creationOrigin = useRef({ x: 0, y: 0 });
 
+  // Registered by whichever note currently has unsaved text changes
+  const unsavedGuardRef = useRef<{ id: string; resolve: () => void } | null>(null);
+
+  const registerUnsavedGuard = useCallback((id: string, resolve: (() => void) | null) => {
+    if (resolve) {
+      unsavedGuardRef.current = { id, resolve };
+    } else if (unsavedGuardRef.current?.id === id) {
+      unsavedGuardRef.current = null;
+    }
+  }, []);
+
+  const resolveUnsavedGuard = useCallback(() => {
+    const guard = unsavedGuardRef.current;
+    if (!guard) return false;
+    unsavedGuardRef.current = null;
+    guard.resolve();
+    return true;
+  }, []);
+
   const handleSelect = useCallback(
     (id: string) => {
+      const guard = unsavedGuardRef.current;
+      if (guard && guard.id !== id) {
+        resolveUnsavedGuard();
+        return false;
+      }
+
       setSelectedId(id);
       bringToFront(id);
+      return true;
     },
-    [bringToFront],
+    [bringToFront, resolveUnsavedGuard],
   );
 
   const handleMove = useCallback(
@@ -58,9 +84,35 @@ export function Board() {
     [removeNote],
   );
 
+  const notesRef = useRef(notes);
+
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  useEffect(() => {
+    const boardEl = boardRef.current;
+    if (!boardEl) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      notesRef.current.forEach((note) => {
+        const x = clamp(note.x, 0, Math.max(0, width - note.width));
+        const y = clamp(note.y, 0, Math.max(0, height - note.height));
+        if (x !== note.x || y !== note.y) {
+          updateNote(note.id, { x, y });
+        }
+      });
+    });
+
+    observer.observe(boardEl);
+    return () => observer.disconnect();
+  }, [updateNote]);
+
   const handleBoardPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (!isPlacing) {
+        if (resolveUnsavedGuard()) return;
         setSelectedId(null);
         return;
       }
@@ -126,7 +178,7 @@ export function Board() {
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [isPlacing, addNote, placingColor],
+    [isPlacing, addNote, placingColor, resolveUnsavedGuard],
   );
 
   return (
@@ -152,6 +204,7 @@ export function Board() {
             trashRef={trashRef}
             selected={selectedId === note.id}
             onSelect={handleSelect}
+            onRegisterUnsavedGuard={registerUnsavedGuard}
             onMove={handleMove}
             onResize={handleResize}
             onTextChange={handleTextChange}

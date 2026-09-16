@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { TfiArrowsCorner } from 'react-icons/tfi';
 import { FaRegSave } from 'react-icons/fa';
@@ -15,7 +15,8 @@ interface StickyNoteProps {
   boardRef: RefObject<HTMLDivElement | null>;
   trashRef: RefObject<HTMLDivElement | null>;
   selected: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string) => boolean;
+  onRegisterUnsavedGuard: (id: string, resolve: (() => void) | null) => void;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, width: number, height: number) => void;
   onTextChange: (id: string, text: string) => void;
@@ -30,6 +31,7 @@ export const StickyNote = memo(function StickyNote({
   trashRef,
   selected,
   onSelect,
+  onRegisterUnsavedGuard,
   onMove,
   onResize,
   onTextChange,
@@ -55,6 +57,25 @@ export const StickyNote = memo(function StickyNote({
   }, [selected]);
 
   useEffect(() => {
+    if (!selected || draftText === note.text) {
+      onRegisterUnsavedGuard(note.id, null);
+      return;
+    }
+
+    onRegisterUnsavedGuard(note.id, () => {
+      const shouldSave = window.confirm('This note has unsaved changes. Save them?');
+      if (shouldSave) {
+        onTextChange(note.id, draftText);
+      } else {
+        setDraftText(note.text);
+      }
+      setIsEditingText(false);
+    });
+
+    return () => onRegisterUnsavedGuard(note.id, null);
+  }, [selected, draftText, note.text, note.id, onTextChange, onRegisterUnsavedGuard]);
+
+  useEffect(() => {
     if (!isEditingText) return;
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -67,9 +88,11 @@ export const StickyNote = memo(function StickyNote({
 
   const startMove = usePointerDrag({
     onDragStart: () => {
+      if (!onSelect(note.id)) return false;
+
       dragStart.current = { ...dragStart.current, x: note.x, y: note.y };
       wasEditingAtDragStart.current = isEditingText;
-      
+
       if (isEditingText) {
         blurFromDrag.current = true;
         textareaRef.current?.blur();
@@ -125,8 +148,7 @@ export const StickyNote = memo(function StickyNote({
       if (!wasEditingAtDragStart.current) {
         const moved = Math.abs(dx) > CLICK_DRAG_THRESHOLD_PX || Math.abs(dy) > CLICK_DRAG_THRESHOLD_PX;
         
-        if (!moved) {
-          onSelect(note.id);
+        if (!moved && onSelect(note.id)) {
           setIsEditingText(true);
         }
       }
@@ -151,6 +173,10 @@ export const StickyNote = memo(function StickyNote({
       onResize(note.id, nextWidth, nextHeight);
     },
   });
+
+  const handleSave = useCallback(() => {
+    onTextChange(note.id, draftText)
+  }, [draftText, note.id, onTextChange])
 
   return (
     <div
@@ -187,7 +213,7 @@ export const StickyNote = memo(function StickyNote({
             className={`ml-auto flex h-5 w-5 items-center justify-center rounded hover:bg-black/5 ${draftText !== note.text ? 'text-slate-600' : 'text-slate-400'}`}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onTextChange(note.id, draftText)}
+            onClick={handleSave}
           >
             <FaRegSave size={24} />
           </button>
