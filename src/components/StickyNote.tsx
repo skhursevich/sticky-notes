@@ -1,11 +1,14 @@
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { TfiArrowsCorner } from 'react-icons/tfi';
+import { FaRegSave } from 'react-icons/fa';
 import type { NoteColor, StickyNoteData } from '../types';
 import { MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH, NOTE_COLORS } from '../types';
 import { NOTE_COLOR_THEME } from '../constants/colors';
 import { usePointerDrag } from '../hooks/usePointerDrag';
 import { clamp, overlapRatio } from '../utils/geometry';
+
+const CLICK_DRAG_THRESHOLD_PX = 10;
 
 interface StickyNoteProps {
   note: StickyNoteData;
@@ -34,20 +37,44 @@ export const StickyNote = memo(function StickyNote({
   onRemove,
   onDragOverTrashChange,
 }: StickyNoteProps) {
-  const [isEditing, setIsEditing] = useState(false);
   const [isOverTrash, setIsOverTrash] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [livePosition, setLivePosition] = useState<{ x: number; y: number } | null>(null);
-  
+  const [draftText, setDraftText] = useState(note.text);
+  const [isEditingText, setIsEditingText] = useState(false);
+
   const dragStart = useRef({ x: note.x, y: note.y, width: note.width, height: note.height });
+  const wasEditingAtDragStart = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const blurFromDrag = useRef(false);
   const theme = NOTE_COLOR_THEME[note.color];
+
+  // Deselecting always exits text editing
+  useEffect(() => {
+    if (!selected) setIsEditingText(false);
+  }, [selected]);
+
+  useEffect(() => {
+    if (!isEditingText) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
+  }, [isEditingText]);
 
   const getBoardRect = () => boardRef.current?.getBoundingClientRect() ?? null;
 
   const startMove = usePointerDrag({
     onDragStart: () => {
       dragStart.current = { ...dragStart.current, x: note.x, y: note.y };
-      onSelect(note.id);
+      wasEditingAtDragStart.current = isEditingText;
+      
+      if (isEditingText) {
+        blurFromDrag.current = true;
+        textareaRef.current?.blur();
+      }
+
       setIsMoving(true);
     },
     onDragMove: ({ dx, dy }) => {
@@ -90,6 +117,19 @@ export const StickyNote = memo(function StickyNote({
       setIsOverTrash(false);
       setIsMoving(false);
       setLivePosition(null);
+
+      if (wasEditingAtDragStart.current) {
+        requestAnimationFrame(() => textareaRef.current?.focus());
+      }
+
+      if (!wasEditingAtDragStart.current) {
+        const moved = Math.abs(dx) > CLICK_DRAG_THRESHOLD_PX || Math.abs(dy) > CLICK_DRAG_THRESHOLD_PX;
+        
+        if (!moved) {
+          onSelect(note.id);
+          setIsEditingText(true);
+        }
+      }
     },
   });
 
@@ -125,18 +165,10 @@ export const StickyNote = memo(function StickyNote({
         zIndex: note.zIndex,
         touchAction: 'none',
       }}
-      onPointerDown={(e) => {
-        if (isEditing) return;
-        startMove(e);
-      }}
-      onDoubleClick={() => setIsEditing(true)}
-      onClick={() => onSelect(note.id)}
+      onPointerDown={startMove}
     >
-      {selected && !isEditing && !isMoving && (
-        <div
-          className="flex items-center gap-1 border-b border-black/5 bg-white/60 px-1.5 py-1"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
+      {selected && (!isMoving || isEditingText) && (
+        <div className="flex items-center gap-1 border-b border-black/5 bg-white/60 px-1.5 py-2.5 cursor-move">
           {NOTE_COLORS.map((color) => (
             <button
               key={color}
@@ -144,44 +176,62 @@ export const StickyNote = memo(function StickyNote({
               className={`h-4 w-4 rounded-full border border-black/10 ${NOTE_COLOR_THEME[color].swatch} ${
                 color === note.color ? 'ring-2 ring-offset-1 ring-slate-500' : ''
               }`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => onColorChange(note.id, color)}
             />
           ))}
+          <button
+            type="button"
+            title="Save"
+            className={`ml-auto flex h-5 w-5 items-center justify-center rounded hover:bg-black/5 ${draftText !== note.text ? 'text-slate-600' : 'text-slate-400'}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onTextChange(note.id, draftText)}
+          >
+            <FaRegSave size={24} />
+          </button>
         </div>
       )}
 
       <div className="flex-1 overflow-hidden p-2.5 cursor-move">
-        {isEditing ? (
+        {selected && isEditingText ? (
           <textarea
-            autoFocus
-            defaultValue={note.text}
-            className="h-full w-full resize-none border-none bg-transparent text-sm leading-snug text-slate-800 outline-none placeholder:text-slate-500"
+            ref={textareaRef}
+            value={draftText}
+            className="h-full w-full resize-none border-none bg-transparent text-lg leading-snug text-slate-800 outline-none placeholder:text-slate-500"
             placeholder="Type a note..."
             onPointerDown={(e) => e.stopPropagation()}
-            onBlur={(e) => {
-              setIsEditing(false);
-              onTextChange(note.id, e.target.value);
+            onChange={(e) => setDraftText(e.target.value)}
+            onBlur={() => {
+              if (blurFromDrag.current) {
+                blurFromDrag.current = false;
+                return;
+              }
+              setIsEditingText(false);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                setDraftText(note.text);
                 e.currentTarget.blur();
               }
             }}
           />
         ) : (
-          <p className="h-full w-full overflow-hidden whitespace-pre-wrap break-words text-sm leading-snug text-slate-800">
-            {note.text || <span className="text-slate-500">Double-click to add text</span>}
+          <p className="h-full w-full overflow-hidden whitespace-pre-wrap break-words text-lg leading-snug text-slate-800">
+            {note.text || <span className="text-slate-500">Click to add text</span>}
           </p>
         )}
       </div>
 
-      {!isMoving && (
+      {(!isMoving && !isEditingText) && (
         <div
           className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize opacity-0 group-hover:opacity-70"
           onPointerDown={(e) => {
             e.stopPropagation();
             startResize(e);
           }}
+          onClick={(e) => e.stopPropagation()}
         >
           <TfiArrowsCorner size={12} />
         </div>
