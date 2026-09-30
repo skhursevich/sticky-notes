@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { loadNotesFromStorage, saveNotesToStorage } from '../api/storage';
 import type { NoteColor, Rect, StickyNoteData } from '../types';
 import { DEFAULT_NOTE_HEIGHT, DEFAULT_NOTE_WIDTH } from '../types';
@@ -19,27 +19,33 @@ function createNote(rect: Rect, zIndex: number, color: NoteColor): StickyNoteDat
   };
 }
 
+function normalizeZIndex(list: StickyNoteData[]): StickyNoteData[] {
+  return list.map((note, index) =>
+    note.zIndex === index + 1 ? note : { ...note, zIndex: index + 1 },
+  );
+}
+
 export function useNotes() {
-  const [notes, setNotes] = useState<StickyNoteData[]>(() => loadNotesFromStorage() ?? []);
-  const zIndexCounter = useRef(notes.reduce((max, note) => Math.max(max, note.zIndex), 0));
+  const [notes, setNotes] = useState<StickyNoteData[]>(() =>
+    normalizeZIndex(loadNotesFromStorage() ?? []),
+  );
 
   useEffect(() => {
     saveNotesToStorage(notes);
   }, [notes]);
 
-  const nextZIndex = useCallback(() => {
-    zIndexCounter.current += 1;
-    return zIndexCounter.current;
-  }, []);
+  const addNote = useCallback((rect: Rect, color: NoteColor) => {
+    const note = createNote(rect, 0, color);
+    let created = note;
 
-  const addNote = useCallback(
-    (rect: Rect, color: NoteColor) => {
-      const note = createNote(rect, nextZIndex(), color);
-      setNotes((prev) => [...prev, note]);
-      return note;
-    },
-    [nextZIndex],
-  );
+    setNotes((prev) => {
+      const next = normalizeZIndex([...prev, note]);
+      created = next[next.length - 1];
+      return next;
+    });
+
+    return created;
+  }, []);
 
   const updateNote = useCallback((id: string, patch: Partial<StickyNoteData>) => {
     setNotes((prev) =>
@@ -48,21 +54,23 @@ export function useNotes() {
   }, []);
 
   const removeNote = useCallback((id: string) => {
-    setNotes((prev) => prev.filter((note) => note.id !== id));
+    setNotes((prev) => normalizeZIndex(prev.filter((note) => note.id !== id)));
   }, []);
 
-  const bringToFront = useCallback(
-    (id: string) => {
-      const top = nextZIndex();
-      setNotes((prev) => prev.map((note) => (note.id === id ? { ...note, zIndex: top } : note)));
-    },
-    [nextZIndex],
-  );
+  const bringToFront = useCallback((id: string) => {
+    setNotes((prev) => {
+      if (prev.length === 0 || prev[prev.length - 1].id === id) return prev;
 
-  const sortedNotes = useMemo(() => [...notes].sort((a, b) => a.zIndex - b.zIndex), [notes]);
+      const target = prev.find((note) => note.id === id);
+
+      if (!target) return prev;
+
+      return normalizeZIndex([...prev.filter((note) => note.id !== id), target]);
+    });
+  }, []);
 
   return {
-    notes: sortedNotes,
+    notes,
     addNote,
     updateNote,
     removeNote,

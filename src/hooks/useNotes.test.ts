@@ -66,7 +66,9 @@ describe('useNotes', () => {
       result.current.addNote({ x: 0, y: 0, width: 200, height: 150 }, 'yellow');
       result.current.addNote({ x: 0, y: 0, width: 200, height: 150 }, 'pink');
     });
+
     const [first, second] = result.current.notes;
+
     expect(first.zIndex).toBeLessThan(second.zIndex);
 
     act(() => {
@@ -74,6 +76,29 @@ describe('useNotes', () => {
     });
 
     const updatedFirst = result.current.notes.find((note) => note.id === first.id)!;
-    expect(updatedFirst.zIndex).toBeGreaterThan(second.zIndex);
+    const updatedSecond = result.current.notes.find((note) => note.id === second.id)!;
+
+    expect(updatedFirst.zIndex).toBeGreaterThan(updatedSecond.zIndex);
+  });
+
+  it('keeps zIndex normalized to the note count, even after repeated bringToFront calls', () => {
+    const { result } = renderHook(() => useNotes());
+
+    act(() => {
+      result.current.addNote({ x: 0, y: 0, width: 200, height: 150 }, 'yellow');
+      result.current.addNote({ x: 0, y: 0, width: 200, height: 150 }, 'pink');
+    });
+
+    const [first] = result.current.notes;
+
+    act(() => {
+      for (let i = 0; i < 20; i += 1) {
+        result.current.bringToFront(first.id);
+      }
+    });
+
+    const zIndexes = result.current.notes.map((note) => note.zIndex).sort((a, b) => a - b);
+    
+    expect(zIndexes).toEqual([1, 2]);
   });
 });
