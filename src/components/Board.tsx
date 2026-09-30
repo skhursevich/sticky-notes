@@ -7,6 +7,7 @@ import { Toolbar } from './Toolbar';
 import type { NoteColor, Rect } from '../types';
 import { DEFAULT_NOTE_HEIGHT, DEFAULT_NOTE_WIDTH, MIN_NOTE_HEIGHT, MIN_NOTE_WIDTH } from '../types';
 import { clamp } from '../utils/geometry';
+import { usePointerDrag } from '../hooks/usePointerDrag';
 
 const CLICK_DRAG_THRESHOLD_PX = 10;
 
@@ -109,6 +110,72 @@ export function Board() {
     return () => observer.disconnect();
   }, [updateNote]);
 
+  const getBoardRect = () => boardRef.current?.getBoundingClientRect() ?? null;
+
+  const startPlacementDrag = usePointerDrag({
+    onDragStart: (e) => {
+      if (e.target !== e.currentTarget) return false;
+      const boardRect = getBoardRect();
+      if (!boardRect) return false;
+
+      const originX = e.clientX - boardRect.left;
+      const originY = e.clientY - boardRect.top;
+      creationOrigin.current = { x: originX, y: originY };
+      setDraft({ x: originX, y: originY, width: 0, height: 0 });
+    },
+    onDragMove: ({ clientX, clientY }) => {
+      const boardRect = getBoardRect();
+      if (!boardRect) return;
+
+      const currentX = clamp(clientX - boardRect.left, 0, boardRect.width);
+      const currentY = clamp(clientY - boardRect.top, 0, boardRect.height);
+      const { x: startX, y: startY } = creationOrigin.current;
+
+      setDraft({
+        x: Math.min(startX, currentX),
+        y: Math.min(startY, currentY),
+        width: Math.abs(currentX - startX),
+        height: Math.abs(currentY - startY),
+      });
+    },
+    onDragEnd: ({ clientX, clientY }) => {
+      const boardRect = getBoardRect();
+      if (!boardRect) {
+        setDraft(null);
+        setIsPlacing(false);
+        return;
+      }
+
+      const currentX = clamp(clientX - boardRect.left, 0, boardRect.width);
+      const currentY = clamp(clientY - boardRect.top, 0, boardRect.height);
+      const { x: startX, y: startY } = creationOrigin.current;
+
+      const draggedWidth = Math.abs(currentX - startX);
+      const draggedHeight = Math.abs(currentY - startY);
+
+      const isClick =
+        draggedWidth < CLICK_DRAG_THRESHOLD_PX && draggedHeight < CLICK_DRAG_THRESHOLD_PX;
+      const width = isClick ? DEFAULT_NOTE_WIDTH : Math.max(draggedWidth, MIN_NOTE_WIDTH);
+      const height = isClick ? DEFAULT_NOTE_HEIGHT : Math.max(draggedHeight, MIN_NOTE_HEIGHT);
+
+      const x = clamp(
+        isClick ? startX - width / 2 : Math.min(startX, currentX),
+        0,
+        boardRect.width - width,
+      );
+      const y = clamp(
+        isClick ? startY - height / 2 : Math.min(startY, currentY),
+        0,
+        boardRect.height - height,
+      );
+
+      const created = addNote({ x, y, width, height }, placingColor);
+      setSelectedId(created.id);
+      setDraft(null);
+      setIsPlacing(false);
+    },
+  });
+
   const handleBoardPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
       if (!isPlacing) {
@@ -117,68 +184,9 @@ export function Board() {
         return;
       }
 
-      if (e.target !== e.currentTarget) return;
-
-      const boardRect = boardRef.current?.getBoundingClientRect();
-
-      if (!boardRect) return;
-
-      const originX = e.clientX - boardRect.left;
-      const originY = e.clientY - boardRect.top;
-      creationOrigin.current = { x: originX, y: originY };
-      setDraft({ x: originX, y: originY, width: 0, height: 0 });
-
-      const handleMove = (moveEvent: PointerEvent) => {
-        const currentX = clamp(moveEvent.clientX - boardRect.left, 0, boardRect.width);
-        const currentY = clamp(moveEvent.clientY - boardRect.top, 0, boardRect.height);
-        const { x: startX, y: startY } = creationOrigin.current;
-
-        setDraft({
-          x: Math.min(startX, currentX),
-          y: Math.min(startY, currentY),
-          width: Math.abs(currentX - startX),
-          height: Math.abs(currentY - startY),
-        });
-      };
-
-      const handleUp = (upEvent: PointerEvent) => {
-        window.removeEventListener('pointermove', handleMove);
-        window.removeEventListener('pointerup', handleUp);
-
-        const currentX = clamp(upEvent.clientX - boardRect.left, 0, boardRect.width);
-        const currentY = clamp(upEvent.clientY - boardRect.top, 0, boardRect.height);
-        const { x: startX, y: startY } = creationOrigin.current;
-
-        const draggedWidth = Math.abs(currentX - startX);
-        const draggedHeight = Math.abs(currentY - startY);
-
-        const isClick =
-          draggedWidth < CLICK_DRAG_THRESHOLD_PX && draggedHeight < CLICK_DRAG_THRESHOLD_PX;
-        const width = isClick ? DEFAULT_NOTE_WIDTH : Math.max(draggedWidth, MIN_NOTE_WIDTH);
-        const height = isClick ? DEFAULT_NOTE_HEIGHT : Math.max(draggedHeight, MIN_NOTE_HEIGHT);
-
-        const x = clamp(
-          isClick ? startX - width / 2 : Math.min(startX, currentX),
-          0,
-          boardRect.width - width,
-        );
-
-        const y = clamp(
-          isClick ? startY - height / 2 : Math.min(startY, currentY),
-          0,
-          boardRect.height - height,
-        );
-
-        const created = addNote({ x, y, width, height }, placingColor);
-        setSelectedId(created.id);
-        setDraft(null);
-        setIsPlacing(false);
-      };
-
-      window.addEventListener('pointermove', handleMove);
-      window.addEventListener('pointerup', handleUp);
+      startPlacementDrag(e);
     },
-    [isPlacing, addNote, placingColor, resolveUnsavedGuard],
+    [isPlacing, resolveUnsavedGuard, startPlacementDrag],
   );
 
   return (
