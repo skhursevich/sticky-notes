@@ -47,6 +47,8 @@ export function Board() {
       const guard = unsavedGuardRef.current;
       if (guard && guard.id !== id) {
         resolveUnsavedGuard();
+        setSelectedId(id);
+        bringToFront(id);
         return false;
       }
 
@@ -111,12 +113,14 @@ export function Board() {
   }, [updateNote]);
 
   const getBoardRect = () => boardRef.current?.getBoundingClientRect() ?? null;
+  const dragBoardRectRef = useRef<DOMRect | null>(null);
 
   const startPlacementDrag = usePointerDrag({
     onDragStart: (e) => {
       if (e.target !== e.currentTarget) return false;
       const boardRect = getBoardRect();
       if (!boardRect) return false;
+      dragBoardRectRef.current = boardRect;
 
       const originX = e.clientX - boardRect.left;
       const originY = e.clientY - boardRect.top;
@@ -124,7 +128,7 @@ export function Board() {
       setDraft({ x: originX, y: originY, width: 0, height: 0 });
     },
     onDragMove: ({ clientX, clientY }) => {
-      const boardRect = getBoardRect();
+      const boardRect = dragBoardRectRef.current;
       if (!boardRect) return;
 
       const currentX = clamp(clientX - boardRect.left, 0, boardRect.width);
@@ -139,7 +143,7 @@ export function Board() {
       });
     },
     onDragEnd: ({ clientX, clientY }) => {
-      const boardRect = getBoardRect();
+      const boardRect = dragBoardRectRef.current;
       if (!boardRect) {
         setDraft(null);
         setIsPlacing(false);

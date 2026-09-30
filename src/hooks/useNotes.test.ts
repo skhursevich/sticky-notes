@@ -98,7 +98,7 @@ describe('useNotes', () => {
     });
 
     const zIndexes = result.current.notes.map((note) => note.zIndex).sort((a, b) => a - b);
-    
+
     expect(zIndexes).toEqual([1, 2]);
   });
 });

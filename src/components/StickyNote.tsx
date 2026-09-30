@@ -86,6 +86,8 @@ export const StickyNote = memo(function StickyNote({
   }, [isEditingText]);
 
   const getBoardRect = () => boardRef.current?.getBoundingClientRect() ?? null;
+  const dragBoardRectRef = useRef<DOMRect | null>(null);
+  const dragTrashRectRef = useRef<DOMRect | null>(null);
 
   const startMove = usePointerDrag({
     onDragStart: () => {
@@ -93,6 +95,8 @@ export const StickyNote = memo(function StickyNote({
 
       dragStart.current = { ...dragStart.current, x: note.x, y: note.y };
       wasEditingAtDragStart.current = isEditingText;
+      dragBoardRectRef.current = getBoardRect();
+      dragTrashRectRef.current = trashRef.current?.getBoundingClientRect() ?? null;
 
       if (isEditingText) {
         blurFromDrag.current = true;
@@ -102,17 +106,16 @@ export const StickyNote = memo(function StickyNote({
       setIsMoving(true);
     },
     onDragMove: ({ dx, dy }) => {
-      const boardRect = getBoardRect();
+      const boardRect = dragBoardRectRef.current;
       if (!boardRect) return;
 
       const nextX = clamp(dragStart.current.x + dx, 0, boardRect.width - note.width);
       const nextY = clamp(dragStart.current.y + dy, 0, boardRect.height - note.height);
       setLivePosition({ x: nextX, y: nextY });
 
-      const trash = trashRef.current;
-      if (!trash) return;
+      const trashRect = dragTrashRectRef.current;
+      if (!trashRect) return;
 
-      const trashRect = trash.getBoundingClientRect();
       const noteScreenRect = {
         x: boardRect.left + nextX,
         y: boardRect.top + nextY,
@@ -127,7 +130,7 @@ export const StickyNote = memo(function StickyNote({
       }
     },
     onDragEnd: ({ dx, dy }) => {
-      const boardRect = getBoardRect();
+      const boardRect = dragBoardRectRef.current;
       if (boardRect) {
         const finalX = clamp(dragStart.current.x + dx, 0, boardRect.width - note.width);
         const finalY = clamp(dragStart.current.y + dy, 0, boardRect.height - note.height);
@@ -165,9 +168,10 @@ export const StickyNote = memo(function StickyNote({
   const startResize = usePointerDrag({
     onDragStart: () => {
       dragStart.current = { ...dragStart.current, width: note.width, height: note.height };
+      dragBoardRectRef.current = getBoardRect();
     },
     onDragMove: ({ dx, dy }) => {
-      const boardRect = getBoardRect();
+      const boardRect = dragBoardRectRef.current;
       if (!boardRect) return;
 
       const maxWidth = boardRect.width - note.x;
@@ -176,9 +180,14 @@ export const StickyNote = memo(function StickyNote({
       const nextHeight = clamp(dragStart.current.height + dy, MIN_NOTE_HEIGHT, maxHeight);
       setLiveSize({ width: nextWidth, height: nextHeight });
     },
-    onDragEnd: () => {
-      if (liveSize) {
-        onResize(note.id, liveSize.width, liveSize.height);
+    onDragEnd: ({ dx, dy }) => {
+      const boardRect = dragBoardRectRef.current;
+      if (boardRect) {
+        const maxWidth = boardRect.width - note.x;
+        const maxHeight = boardRect.height - note.y;
+        const finalWidth = clamp(dragStart.current.width + dx, MIN_NOTE_WIDTH, maxWidth);
+        const finalHeight = clamp(dragStart.current.height + dy, MIN_NOTE_HEIGHT, maxHeight);
+        onResize(note.id, finalWidth, finalHeight);
       }
       setLiveSize(null);
     },
