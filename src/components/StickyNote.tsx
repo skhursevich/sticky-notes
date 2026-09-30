@@ -42,6 +42,7 @@ export const StickyNote = memo(function StickyNote({
   const [isOverTrash, setIsOverTrash] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [livePosition, setLivePosition] = useState<{ x: number; y: number } | null>(null);
+  const [liveSize, setLiveSize] = useState<{ width: number; height: number } | null>(null);
   const [draftText, setDraftText] = useState(note.text);
   const [isEditingText, setIsEditingText] = useState(false);
 
@@ -146,8 +147,9 @@ export const StickyNote = memo(function StickyNote({
       }
 
       if (!wasEditingAtDragStart.current) {
-        const moved = Math.abs(dx) > CLICK_DRAG_THRESHOLD_PX || Math.abs(dy) > CLICK_DRAG_THRESHOLD_PX;
-        
+        const moved =
+          Math.abs(dx) > CLICK_DRAG_THRESHOLD_PX || Math.abs(dy) > CLICK_DRAG_THRESHOLD_PX;
+
         if (!moved && onSelect(note.id)) {
           setIsEditingText(true);
         }
@@ -157,6 +159,8 @@ export const StickyNote = memo(function StickyNote({
 
   const displayX = livePosition?.x ?? note.x;
   const displayY = livePosition?.y ?? note.y;
+  const displayWidth = liveSize?.width ?? note.width;
+  const displayHeight = liveSize?.height ?? note.height;
 
   const startResize = usePointerDrag({
     onDragStart: () => {
@@ -170,13 +174,19 @@ export const StickyNote = memo(function StickyNote({
       const maxHeight = boardRect.height - note.y;
       const nextWidth = clamp(dragStart.current.width + dx, MIN_NOTE_WIDTH, maxWidth);
       const nextHeight = clamp(dragStart.current.height + dy, MIN_NOTE_HEIGHT, maxHeight);
-      onResize(note.id, nextWidth, nextHeight);
+      setLiveSize({ width: nextWidth, height: nextHeight });
+    },
+    onDragEnd: () => {
+      if (liveSize) {
+        onResize(note.id, liveSize.width, liveSize.height);
+      }
+      setLiveSize(null);
     },
   });
 
   const handleSave = useCallback(() => {
-    onTextChange(note.id, draftText)
-  }, [draftText, note.id, onTextChange])
+    onTextChange(note.id, draftText);
+  }, [draftText, note.id, onTextChange]);
 
   return (
     <div
@@ -186,8 +196,8 @@ export const StickyNote = memo(function StickyNote({
       style={{
         left: displayX,
         top: displayY,
-        width: note.width,
-        height: note.height,
+        width: displayWidth,
+        height: displayHeight,
         zIndex: note.zIndex,
         touchAction: 'none',
       }}
@@ -250,7 +260,7 @@ export const StickyNote = memo(function StickyNote({
         )}
       </div>
 
-      {(!isMoving && !isEditingText) && (
+      {!isMoving && !isEditingText && (
         <div
           className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize opacity-0 group-hover:opacity-70"
           onPointerDown={(e) => {
